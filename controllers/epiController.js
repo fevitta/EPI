@@ -4,13 +4,18 @@ exports.getById = (req, res, next) => {
     let id = new String(req.params.id);
     let apenasNumeros = /^\d+$/.test(id);
     let inicioProcessamento = new Date();
+    let erroCA = 0;
+    let erroMsg = {"status":400,"erro":''};
+    let conteudoMensagem;
     var ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
 
     if (id.length > 6) {
-        res.status(300).send('Código CA inválido');
+        erroMsg.erro = 'Código CA deve conter até 6 números. CA: '+id;
+        res.status(400).send(erroMsg);
         process.exit;
     } else if (apenasNumeros == false) {
-        res.status(300).send('Código CA deve conter apenas números');          
+        erroMsg.erro = 'Código CA deve conter apenas números. CA: '+id;
+        res.status(400).send(erroMsg);          
     } else {
 
     (async () => {
@@ -34,13 +39,29 @@ exports.getById = (req, res, next) => {
   await page.waitForSelector('#PlaceHolderConteudo_tbPesquisa #btnConsultar')
   await page.click('#PlaceHolderConteudo_tbPesquisa #btnConsultar')
   
-  await page.waitForSelector('#PlaceHolderConteudo_grdListaResultado #PlaceHolderConteudo_grdListaResultado_btnDetalhar_0',{waitUntil: 'load', timeout: 5000})
-  //await page.click('#PlaceHolderConteudo_grdListaResultado #PlaceHolderConteudo_grdListaResultado_btnDetalhar_0')
-  await page.screenshot({ path: 'teste.png' });
+  //fazer
+  //considerar inverter o waitForSelector ao invés do 1o registro do retorno para a msg de erro que deve ser mais rapido.
+  //deixar timeout menor para o erro e maior para esperar a busca
+  //2a opcar, migrar para esperar mais de um selector
+  //await page.waitFor(() =>  document.querySelectorAll('Selector1, Selector2, Selector3').length);
 
-  //*[@id="PlaceHolderConteudo_grdListaResultado_lblNrCA_0"]
-  //#PlaceHolderConteudo_grdListaResultado_lblNrCA_0
-
+  try {
+    await page.waitForSelector('#PlaceHolderConteudo_grdListaResultado #PlaceHolderConteudo_grdListaResultado_btnDetalhar_0',{waitUntil: 'load', timeout: 30000})
+  } catch(error) {
+    try {
+        conteudoMensagem = await page.$$eval('.conteudoMensagem', el => el[0].innerText)
+        erroMsg.erro = 'CA não encontrado. CA: '+id+' - '+conteudoMensagem;
+        res.status(400).send(erroMsg);
+        erroCA = 1;
+    } catch (error) {
+        erroMsg.erro = 'Tempo limite excedido. CA: '+id;  
+        res.status(400).send(erroMsg);
+        erroCA = 1; 
+    }
+  }
+  
+  if (erroCA == 0) {
+      
   let caValue = await page.$$eval('#PlaceHolderConteudo_grdListaResultado_lblNrCA_0', el => el[0].innerText)
   let cnpjValue = await page.$$eval('#PlaceHolderConteudo_grdListaResultado_lblNrCNPJ_0', el => el[0].innerText)
   let fabricanteValue = await page.$$eval('#PlaceHolderConteudo_grdListaResultado_lblNomeLaboratorio_0', el => el[0].innerText)
@@ -64,6 +85,8 @@ exports.getById = (req, res, next) => {
   await browser.close()
 
   res.status(200).send(dadosCA);
+
+  }
   
   })()
   }
