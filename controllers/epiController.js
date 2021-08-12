@@ -19,7 +19,10 @@ exports.getById = (req, res, next) => {
     } else {
 
     (async () => {
-  const browser = await puppeteer.launch({ headless: true })
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--single-process', '--no-zygote', '--no-sandbox']
+  })
   const page = await browser.newPage()
   
   const navigationPromise = page.waitForNavigation()
